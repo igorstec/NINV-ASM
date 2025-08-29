@@ -89,7 +89,7 @@ ninv:
 ; rdx = bit block to set
 
 ; freely used:
-; rax, rcx, rsi, rdi, r11, r15
+; rax, r9, rsi, rdi, r11, r15
 .main_loop:
     mov r11, r10                    ; j = block_count
     test r8, r8
