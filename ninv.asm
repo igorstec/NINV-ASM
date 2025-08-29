@@ -1,10 +1,10 @@
 ; ninv.asm
 
 ; declaration from libc
-extern calloc
+extern malloc
 extern free
 
-; make ninv avaible
+; Make ninv avaible.
 global ninv
 
 section .text
@@ -43,20 +43,27 @@ ninv:
 ; ALLOCATE MEMORY FOR R
 ; r12 = pointer to R 
 
-    mov     rdi, r15            ; rdi = n/64
-    inc     rdi                 ; rdi = n/64 + 1   
-    mov     rsi, 8              ; rsi = size of uint64_t
-    call    calloc              ; allocate memory for R
-    test    rax, rax            ; check if allocation was successful
-    jz      .end_cleanup        ; if not, return
-    mov     r12, rax            ; save pointer to allocated array in r12
+; MALLOC verison
+    mov rdi, r15                ; rdi = n/64
+    inc rdi                     ; rdi = n/64 + 1
+    shl rdi, 3                  ; rdi = (n/64 + 1) * 8
+    call malloc wrt ..plt       ; allocate memory for R
+    test rax, rax               ; check if allocation was successful
+    jz .end_cleanup             ; if not, return
+    mov r12, rax                ; save pointer to allocated array in r12
+    mov rdi, r12                ; set rdi = R pointer
+    xor rax, rax                ; set rax = 0
+    mov rcx, r15                ; set counter
+    cld                         ; clear direction flag (increment mode)
+    rep stosq                   ; set the R = 0 / r12 = R
+
 ; INITIALIZE R TO 2^{n}
     mov qword [r12 + r15*8], 1  ; set R[block_count] = 1
 
 ; BIT SCAN LOOP - find most significant bit in x
 ; r11 = block_count of x
 ; r10 = bit index offset of x
-    mov rdx, r15               ; set rdx = block_count
+    mov rdx, r15                            ; set rdx = block_count
 .bit_scan:
     dec rdx
     mov rax, [r14 + rdx * 8]
@@ -69,20 +76,7 @@ ninv:
     sub r8, r10                             ; r8 = bit_index to set
 
     lea r10, [rdx+1]                        ; j = block_count 
-    inc r15                                 ; block_count++ for R 
-    jmp .main_loop
-.last_set_and_end:
-    bts qword [r13 + rdx*8], rcx
-.end:
-    mov     rdi, r12                        ; free R
-    call    free
-.end_cleanup:
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
-    ret
+    inc r15                                 ; block_count for R (previously it was for x)
 
 ; MAIN LOOP
 ; rbx = n (number of bits)
@@ -115,7 +109,6 @@ ninv:
 ; r11 = j (block_count -> 0)
 ; r15 = max_index
 
-    
     mov r9, 0                       ; set second = 0 
 
 .compare_calculate_element:
@@ -146,12 +139,26 @@ ninv:
 
     jmp .compare_calculate_element
 
+.last_set_and_end:
+    bts qword [r13 + rdx*8], rcx
+.end:
+    mov     rdi, r12                ; free R
+    call    free wrt ..plt
+.end_cleanup:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+
+
 .set_and_subtract:
 ; sets the the 2^{r8} in y
 ; subtracts x * 2^{r8} from R
 
 .set:
-    bts qword [r13 + rdx*8], rcx ; set the bit in y
+    bts qword [r13 + rdx*8], rcx    ; set the bit in y
 
 .subtract:
 ; SUBSTRACT LOOP
